@@ -6,6 +6,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "function.h"
+
 
 int max(int a, int b)
 {
@@ -18,8 +20,8 @@ void str_cli(FILE *fp, int sockfd)
 {
     int maxfdp1;
     fd_set rset;
-    char sendline[1024], recvline[1024];
-    int n;
+    char sendline[1024], recvline[1024], msg[1024];
+    int n, cmd;
 
     FD_ZERO(&rset);
     while(1)
@@ -31,12 +33,23 @@ void str_cli(FILE *fp, int sockfd)
 
         if(FD_ISSET(sockfd, &rset))
         {
-            if(read(sockfd, recvline, 1024) == 0)
+            if(readline(sockfd, recvline, 1024) == 0)
             {
                 puts("error");
                 exit(EXIT_FAILURE);
             }
-            fputs(recvline, stdout);
+            if((cmd = parse(recvline, msg)) == 0)
+            {
+                printf("[Server] %s\n", msg);
+            }
+            else if(cmd == 1)
+            {
+                puts(msg);
+            }
+            else if(cmd == 5)
+            {
+                exit(EXIT_SUCCESS);
+            }
         }
         if(FD_ISSET(fileno(fp), &rset))
         {
@@ -50,25 +63,42 @@ void str_cli(FILE *fp, int sockfd)
 int main(int argc, char** argv)
 {
     int sockfd;
-    struct sockaddr_in servaddr, localaddr;
-    int len;
+    struct sockaddr_in servaddr;
+    int len, cmd;
+    char ipaddr[1024], port[1024], buf[1024], buf2[1024];
 
     if(argc != 3)
     {
-        puts("usage: tcpcli <IPaddress> <serv_port>");
-        exit(EXIT_FAILURE);
+        puts("It is not connected to any server");
+        puts("Please use /connect <IP address> <Port number>");
+        while(fgets(buf, 1024, stdin))
+        {
+            cmd = parse(buf, buf2);
+            if(cmd == 3)
+            {
+                sscanf(buf2, "%s %s", ipaddr, port);
+                break;
+            }
+            puts("It is not connected to any server");
+            puts("Please use /connect <IP address> <Port number>");
+        }
+
     }
+    else
+    {
+        strcpy(ipaddr, argv[1]);
+        strcpy(port, argv[2]);
+    }
+    
+
     sockfd = socket(AF_INET, SOCK_STREAM, 0);
     bzero(&servaddr, sizeof(servaddr));
     servaddr.sin_family = AF_INET;
-    servaddr.sin_port = htons(atoi(argv[2]));
-    inet_pton(AF_INET, argv[1], &servaddr.sin_addr);
+    servaddr.sin_port = htons(atoi(port));
+    inet_pton(AF_INET, ipaddr, &servaddr.sin_addr);
+
     connect(sockfd, (struct sockaddr*) &servaddr, sizeof(servaddr));
     
-    len = sizeof(localaddr);
-    getsockname(sockfd, (struct sockaddr*) &localaddr, &len);
-
-    printf("Local IP address %s, port %d\n", inet_ntoa(localaddr.sin_addr), ntohs(localaddr.sin_port));
     str_cli(stdin, sockfd);
     
     close(sockfd);
