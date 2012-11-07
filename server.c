@@ -1,11 +1,4 @@
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <sys/select.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
-#include <stdio.h>
-#include <string.h>
-#include "function.h"
+#include "fatunp.h"
 
 struct user
 {
@@ -36,7 +29,7 @@ void bc_msg(int sockfd, const char* nick, const char* msg)
 
 }
 
-void welcome_msg(int listenfd, int sockfd, const char* nick)
+void welcome_msg(int sockfd, const char* nick)
 {
     struct sockaddr_in localaddr;
     int s_len;
@@ -45,7 +38,7 @@ void welcome_msg(int listenfd, int sockfd, const char* nick)
     memset(&localaddr, 0, sizeof(localaddr));
     s_len = sizeof(localaddr);
 
-    getsockname(listenfd, (struct sockaddr*) &localaddr, &s_len);
+    getsockname(sockfd, (struct sockaddr*) &localaddr, &s_len);
 
     sprintf(target, "/serv Hello %s, welcome! ServerIP:%s:%d", nick, inet_ntoa(localaddr.sin_addr), ntohs(localaddr.sin_port));
 
@@ -57,7 +50,7 @@ void set_nick(char *ptr, int s, int maxi)
     int i, tmp;
     const char err_nick1[] = "/serv This name has been used by others.";
     const char err_nick2[] = "/serv Username can only consists of 2~12 digits or English letters."; 
-    char target[1024];
+    char target[1024], oldnick[1024];
 
     tmp = 0;
     if(strlen(ptr) < 2 || strlen(ptr) > 12)
@@ -81,16 +74,29 @@ void set_nick(char *ptr, int s, int maxi)
         write(client[s].fd, err_nick2, strlen(err_nick2) + 1);
     else
     {
+        strcpy(oldnick, client[s].nick);
         strcpy(client[s].nick, ptr);
         if(client[s].nick_set == 0)
         {
-            welcome_msg(3, client[s].fd, client[s].nick);
+            welcome_msg(client[s].fd, client[s].nick);
             client[s].nick_set = 1;
+            for(i = 0; i <= maxi; i++)
+                if(i != s && client[i].fd >= 0 && client[i].nick_set == 1)
+                {
+                    sprintf(target, "/serv %s is online.", client[s].nick);
+                    write(client[i].fd, target, strlen(target) + 1);
+                }
         }
         else
         {
             sprintf(target, "/serv You're now known as %s.", client[s].nick);
             write(client[s].fd, target, strlen(target) + 1);
+            for(i = 0; i <= maxi; i++)
+                if(i != s && client[i].fd >= 0 && client[i].nick_set == 1)
+                {
+                    sprintf(target, "/serv %s is now known as %s.", oldnick, client[s].nick);
+                    write(client[i].fd, target, strlen(target) + 1);
+                }
         }
     }
     return;

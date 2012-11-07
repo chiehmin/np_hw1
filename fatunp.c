@@ -1,7 +1,4 @@
-#include <stdio.h>
-#include <string.h>
-#include <sys/types.h>
-#include <errno.h>
+#include "fatunp.h"
 
 #define CMD_NUM 6
 
